@@ -25,5 +25,29 @@ const router = express.Router();
 /* 作答區
 router.METHOD('PATH', (req, res) => { ... });
 */
-
+router.post('/', (req, res) => {
+  const form = formidable({
+    uploadDir,
+    keepExtensions: true,
+    maxFileSize,
+  });
+  form.parse(req, (err, fields, files) => {
+    if (err) {
+      const status = err.httpCode || err.status || 500;
+      return res.status(status).json({ error: err.message });
+    }
+    if (!Array.isArray(files.image) || files.image.length === 0) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const file = files.image[0];
+    if (!file.mimetype.startsWith('image/')) {
+        return res.status(400).json({ error: 'Only image files are allowed' });
+    }
+    res.status(200).json({
+      filename: file.originalFilename,
+      sizeKB: Math.round(file.size / 1024),
+      savedPath: file.filepath
+    });
+  });
+});
 module.exports = router;

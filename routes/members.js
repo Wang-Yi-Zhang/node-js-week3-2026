@@ -9,33 +9,34 @@ const initialMembers = require('../fixtures/members.json');
 // ───────────────────────────────────────────────────────────
 
 // 1. 複製 initialMembers，不直接改外部陣列
-/* 作答區
-const members = ...;
-*/
-
+const members = [...initialMembers];
 // 2. 下一個新增會員要使用的 id
-/* 作答區
-let nextId = ...;
-*/
+let nextId = members.length > 0 ? Math.max(...members.map(m => m.id)) + 1 : 1;
 
 // 3. 兩個內部 helper 函式
 
 // 函式一：filterByQuery(list, query)：
 // - 依據 query.level 篩選，沒帶就回全部
 // - 任務二的 GET / 會使用到這個函式
-/* 作答區
-function filterByQuery(list, query) { ... }
-*/
-
+function filterByQuery(list, query) {
+  if (!query.level) return list;
+  return list.filter(m => m.level === query.level);
+}
 // 函式二：validateBody(body)
 // - 驗證 body 有沒有 name、level 欄位，要擋 null / undefined / {}
 // - 驗證通過 → { valid: true }
 // - 驗證失敗 → { valid: false, error: '缺 name 或 level' }
 // - 任務三的 POST / 會使用到這個函式
-/* 作答區
-function validateBody(body) { ... }
-*/
 
+function validateBody(body) {
+  if (!body || !body.name || !body.level) {
+    return { valid: false, error: '缺 name 或 level' };
+  }
+  if (!['VIP', 'normal'].includes(body.level)) {
+    return { valid: false, error: 'level 必須是 VIP 或 normal' };
+  }
+  return { valid: true };
+}
 const router = express.Router();
 // 此 router 掛在 app.js 的 '/members'，以下路由皆帶此前綴。舉例來說：
 // - router.get('/') → GET /members
@@ -49,17 +50,25 @@ const router = express.Router();
 // - 輸入：req.query.level 可帶 'VIP' | 'normal'（選填）
 // - 輸出：200 + [{ id, name, level }, ...]
 // - 提示：filterByQuery(members, req.query)
-/* 作答區
-router.METHOD('PATH', (req, res) => { ... });
-*/
+
+router.get('/', (req, res) => {
+  const filteredMembers = filterByQuery(members, req.query);
+  res.status(200).json(filteredMembers);
+});
 
 // GET /:id
 // - 輸入：req.params.id（string，需使用 Number() 轉換）
 // - 輸出：200 + { id, name, level }，或 404 + { error: '會員不存在' }（找不到時）
 // - 提示：members.find，找不到時結果是 undefined
-/* 作答區
-router.METHOD('PATH', (req, res) => { ... });
-*/
+
+router.get('/:id', (req, res) => {
+    const memberId = Number(req.params.id);
+    const member = members.find(m => m.id === memberId);
+    if (!member) {
+        return res.status(404).json({ error: '會員不存在' });
+    }
+    res.status(200).json(member);
+});
 
 // ───────────────────────────────────────────────────────────
 // TODO 任務三：POST /
@@ -70,10 +79,16 @@ router.METHOD('PATH', (req, res) => { ... });
 // - 輸出：201 + 新會員物件（id 自動配），或 400 + { error: '缺 name 或 level' }（驗證失敗）
 // - 提示：validateBody(req.body) 驗證；通過後用 spread 將 req.body 的欄位與 nextId 自動遞增的 id 合為新物件，push 進 members
 // - 範例：POST /members body { name: '阿文', level: 'VIP' } → 201 { id: 5, name: '阿文', level: 'VIP' }
-/* 作答區
-router.METHOD('PATH', (req, res) => { ... });
-*/
 
+router.post('/', (req, res) => {
+  const { valid, error } = validateBody(req.body);
+  if (!valid) {
+    return res.status(400).json({ error });
+  }
+  const newMember = { ...req.body, id: nextId++ };
+  members.push(newMember);
+  res.status(201).json(newMember);
+});
 // ───────────────────────────────────────────────────────────
 // TODO 任務四：PUT /:id 和 DELETE /:id
 // ───────────────────────────────────────────────────────────
@@ -86,7 +101,17 @@ router.METHOD('PATH', (req, res) => { ... });
 /* 作答區
 router.METHOD('PATH', (req, res) => { ... });
 */
-
+router.put('/:id', (req, res) => {
+  const memberId = Number(req.params.id);
+  const idx = members.findIndex(m => m.id === memberId);
+  if (idx === -1) {
+    return res.status(404).json({ error: '會員不存在' });
+  }
+  const { name, level } = req.body;
+  if (name) members[idx].name = name;
+  if (level) members[idx].level = level;
+  res.status(200).json(members[idx]);
+});
 // DELETE /:id
 // - 輸入：req.params.id（string，需 Number() 轉換）
 // - 輸出：204（無 body），或 404 + { error: '會員不存在' }（找不到時）
@@ -94,5 +119,14 @@ router.METHOD('PATH', (req, res) => { ... });
 /* 作答區
 router.METHOD('PATH', (req, res) => { ... });
 */
+router.delete('/:id', (req, res) => {
+  const memberId = Number(req.params.id);
+  const idx = members.findIndex(m => m.id === memberId);
+  if (idx === -1) {
+    return res.status(404).json({ error: '會員不存在' });
+  }
+  members.splice(idx, 1);
+  res.status(204).end();
+});
 
 module.exports = router;
